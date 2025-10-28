@@ -36,6 +36,7 @@ class ApiKeyManager:
                     self.api_keys[key] = env_val
                     log.info(f"Loaded {key} from individual env var")
 
+        # check for missing keys
         missing = [k for k in self.REQUIRED_KEYS if not self.api_keys.get(k)]
         if missing:
             log.error("Missing required API keys", missing_keys=missing)
@@ -43,8 +44,7 @@ class ApiKeyManager:
         
         log.info("API keys loaded", keys={k: v[:6] + "..." for k, v in self.api_keys.items()})
 
-def test():
-    a = ApiKeyManager()
+
 
 
 

@@ -1,3 +1,8 @@
+import sys
+from mcq_gen.exception.custom_exception import ProjectException
 
-from mcq_gen.utils.model_loader import test
-test()
+try:
+    10/0
+except ZeroDivisionError as e:
+    ProjectException(e, sys)
+
