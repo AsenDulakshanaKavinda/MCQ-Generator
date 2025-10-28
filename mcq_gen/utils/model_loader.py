@@ -7,7 +7,7 @@ from mcq_gen.utils.config_loader import load_config
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 
 from mcq_gen.logger import GLOBAL_LOGGER as log
-from mcq_gen.exception.custom_exception import DocumentPortalException
+from mcq_gen.exception.custom_exception import ProjectException
 
 
 load_dotenv() 
@@ -39,7 +39,7 @@ class ApiKeyManager:
         missing = [k for k in self.REQUIRED_KEYS if not self.api_keys.get(k)]
         if missing:
             log.error("Missing required API keys", missing_keys=missing)
-            raise DocumentPortalException("Missing API keys", sys)
+            raise ProjectException("Missing API keys", sys)
         
         log.info("API keys loaded", keys={k: v[:6] + "..." for k, v in self.api_keys.items()})
 
