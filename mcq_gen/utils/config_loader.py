@@ -22,11 +22,6 @@ def load_config(config_path: str | None = None) -> dict:
 
     if not path.exists():
         raise FileNotFoundError(f"config file not found: {path}")
-    print(str(path))
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
-
-def test():
-    print(f"project root: {str(_project_root())}")
-    print(load_config())

@@ -45,6 +45,73 @@ class ApiKeyManager:
         log.info("API keys loaded", keys={k: v[:6] + "..." for k, v in self.api_keys.items()})
 
 
+class ModelLoader:
+    
+    def __init__(self):
+        """"
+        If the environment is not production, 
+        load the .env file and run in local/development mode; 
+        otherwise, assume production environment variables are already set.
+        """
+        if os.getenv("ENV", "local").lower() != "production":
+            load_dotenv()
+            log.info("RUNNING IN LOCAL MODE: .env loaded")
+        else:
+            log.info("RUNNING IN PRODUCTION MODE!!!")
+        
+        self.api_key_manager = ApiKeyManager()
+        self.config = load_config()
+        log.info("YAML CONFIG LOADED", config_keys=list(self.config.keys()))
+
+    def load_llm(self):
+        """
+        Load and return the configured LLM model.
+        """
+
+        # dynamically pick which LLM provider to use based on your environment
+        llm_block = self.config["llm"]
+        provider_key = os.getenv("LLM_PROVIDER", "mistral") # If LLM_PROVIDER does not exist, it returns "mistral" (the default value).
+
+        if provider_key not in llm_block:
+            log.error("LLM provider not found in config", provider=provider_key)
+            raise ValueError(f"LLM provide '{provider_key}' not found in config")
+        
+        llm_config = llm_block[provider_key]
+        provider = llm_config.get("procider")
+        model_name = llm_config.get("model_name")
+        temperature = llm_config.get("temperature", 0.2)
+
+        log.info("Loading LLM", provider=provider, model=model_name)
+
+        if provider_key == "mistral":
+            return ChatMistralAI(
+                model = model_name,
+                temperature=temperature,
+            )
+        else:
+            log.error("Unsupported LLM provider", provider=provider)
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+
+
+    def load_embeddings(self):
+        """
+        load and return embedding model from Mistral AI
+        """
+        try:
+            model_name = self.config["embedding_model"]["model_name"]
+            log.info("Loading embedding model", model=model_name)
+            return MistralAIEmbeddings(
+                model=model_name
+            )
+        except Exception as e:
+            log.error("Error loading embedding model", error=str(e))
+            raise ProjectException("Failed to load embedding model", sys)
+
+
+
+
+
 
 
 
