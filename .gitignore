@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Ignore temporary data and FAISS index
+data/
+faiss_index/
+
 # Distribution / packaging
 .Python
 build/
