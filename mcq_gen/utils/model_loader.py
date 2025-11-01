@@ -13,7 +13,7 @@ from mcq_gen.exception.custom_exception import ProjectException
 load_dotenv() 
 
 class ApiKeyManager:
-    REQUIRED_KEYS = ["MISTRAL_API_KEY"] 
+    REQUIRED_KEYS = ["MISTRAL_API_KEY"]
     def __init__(self):
         self.api_keys = {}
         raw = os.getenv("apikeys")
