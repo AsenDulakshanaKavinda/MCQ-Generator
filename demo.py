@@ -12,7 +12,7 @@ load_dotenv()
 
 def test_document_ingestion_and_rag():
 
-    test_files = ["E:/Project/MCQ-Generator/test_data/nlp.pdf",]
+    test_files = ["E:/Project/MCQ-Generator/data/test_data/nlp.pdf",]
 
     uploaded_files = []
 

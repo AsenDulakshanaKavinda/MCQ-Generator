@@ -112,8 +112,6 @@ class ChatIngestor:
                 # Configure search parameters
                 search_kwargs = {"k": k}
 
-
-
                 result = vs.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
                 log.info("build_retriever completed...")
                 print(f"type of vs: {type(result)}")
