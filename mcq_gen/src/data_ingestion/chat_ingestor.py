@@ -25,7 +25,7 @@ class ChatIngestor:
             temp_base: str = "data", # keep data after load and give a clean name
             faiss_base: str = "faiss_index", # keep vs data
             use_session_dirs: bool = True,
-            use_txt_chunking: bool = True,
+            use_txt_chunking: bool = False,
             session_id: Optional[str] = None,
     ):
         try:
@@ -109,17 +109,15 @@ class ChatIngestor:
                 added = fm.add_documents(chunks)
                 log.info(f"FAISS index updated, added={added}, index={str(self.faiss_dir)}")
 
-                # Configure search parameters based on search type
+                # Configure search parameters
                 search_kwargs = {"k": k}
 
-                if search_type == "mmr":
-                    # MMR needs fetch_k (docs to fetch) and lambda_mult (diversity parameter)
-                    search_kwargs["fetch_k"] = fetch_k
-                    search_kwargs["lambda_mult"] = lambda_mult
-                    log.info("Using MMR search", k=k, fetch_k=fetch_k, lambda_mult=lambda_mult)
 
+
+                result = vs.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
                 log.info("build_retriever completed...")
-                return vs.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
+                print(f"type of vs: {type(result)}")
+                return result
 
         except Exception as e:
             log.error(f"Failed to build retriever, error={str(e)}")
