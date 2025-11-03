@@ -7,14 +7,12 @@ from pathlib import Path
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain_core.output_parsers import StrOutputParser
-from langchain_classic.chains import RetrievalQA, LLMChain # for a single use task
+from langchain_classic.chains import RetrievalQA
+from langchain_core.runnables import RunnablePassthrough, RunnableParallel, RunnableLambda
 
-from mcq_gen.src.data_ingestion.chat_ingestor import ChatIngestor
 
 from mcq_gen.exception import ProjectException
-from mcq_gen.prompts.prompt_library import prompt, custom_prompt
+from mcq_gen.prompts.prompt_library import prompt, custom_prompt_v1
 from mcq_gen.logger import logging as log
 from mcq_gen.utils.model_loader import ModelLoader
 
@@ -37,15 +35,10 @@ class MCQGenRAG:
             # save generated 
             self.result_base = Path(result_base); self.result_base.mkdir(parents=True, exist_ok=True)
             self.results_dir = self._resolve_dir(self.result_base)
-            
-            # load the llm model
-            self.llm = self._load_llm()
-
-            # Load initial and refine prompts from registry
-            self.prompt = prompt
 
             self.retriever = retriever
-            self.chain = None
+            
+
 
             log.info(f"MCQGenRAG initialized, session_id={self.session_id}")
 
@@ -71,7 +64,8 @@ class MCQGenRAG:
         """
         try:
             if not os.path.isdir(index_path):
-                raise ProjectException(f"FAISS index directory not found: {index_path}")
+                raise ProjectException(f"FAISS index directory not found: {index_path}", sys)
+
 
             embedding = ModelLoader().load_embeddings()
             vectorstore = FAISS.load_local(
@@ -84,9 +78,8 @@ class MCQGenRAG:
             search_kwargs = {"k": k}
             self.retriever = vectorstore.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
 
-            self._build_chain()
 
-            log.info("FAISS retriever loaded successfully",)
+            log.info("FAISS retriever loaded successfully")
 
             return self.retriever
 
@@ -120,6 +113,25 @@ class MCQGenRAG:
             raise ProjectException("LLM loading error in MCQGenRAG", sys)
 
     # -----------------------------------------------------------
+    # prompt
+    # -----------------------------------------------------------
+    def _setup_prompt(self):
+        
+        try:
+            mcq_prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", custom_prompt_v1),
+                    ("human", "Generate the MCQs now based on the topic: '{topic}'"), 
+                ]
+            )
+            log.info("Setting up prompt complited.")
+            return mcq_prompt
+            
+        except Exception as e:
+            raise ProjectException(f"something went wrong while set-up prompt error={e}", sys)
+
+
+    # -----------------------------------------------------------
     # chain
     # -----------------------------------------------------------
     def _build_chain(self):
@@ -127,14 +139,22 @@ class MCQGenRAG:
             if self.retriever is None:
                 raise ProjectException("No retriever, set before building again", sys)
             
-            self.chain = RetrievalQA.from_chain_type(
-                llm=self.llm,
-                chain_type="stuff",         # combines all retrieved docs into one prompt
-                retriever=self.retriever,
-                return_source_documents=False  # optional, gives you which docs were used
+
+            mcq_chain = (
+                RunnableParallel(
+                    # 'context' key gets populated by feeding the 'topic' to the retriever
+                    context=lambda x: self.retriever.invoke(x['topic']), 
+                    # 'topic' key simply passes the original input topic through
+                    topic=RunnablePassthrough() 
+                )
+                | self._setup_prompt()
+                | self._load_llm()
+                | RunnableLambda(lambda msg: {"result": msg.content})
+
             )
             log.info(f"LCEL chain built successfully, session_id={self.session_id}")
-
+            return mcq_chain
+            
         except Exception as e:
             log.error(f"Failed to build chain, error={str(e)}")
             raise ProjectException("Error building chain", sys)
@@ -143,11 +163,12 @@ class MCQGenRAG:
     # -----------------------------------------------------------
     # Main invoke function
     # -----------------------------------------------------------
-    def genetate(self):
-        prompt = self.prompt
-        result = self.chain.invoke(prompt)
-        self._save_as_json(result)
-        return result
+
+    def generate(self, topic: str):
+        chain = self._build_chain()
+        response = chain.invoke({"topic": topic})
+        self._save_as_json(response)
+        return response
 
     # -----------------------------------------------------------
     # extract and save as json format
@@ -155,8 +176,15 @@ class MCQGenRAG:
     def _save_as_json(self, raw_data):
         try:
             if raw_data:
-                # Extract JSON string from result
-                raw_result = raw_data['result'].strip()
+                # Handle both AIMessage and dict
+                if hasattr(raw_data, "content"):  # AIMessage case
+                    raw_result = raw_data.content.strip()
+                elif isinstance(raw_data, dict) and "result" in raw_data:
+                    raw_result = raw_data["result"].strip()
+                else:
+                    raise ProjectException("Unexpected response type", sys)
+
+                # Remove ```json fences if present
                 if raw_result.startswith("```json"):
                     raw_result = raw_result[len("```json"):].strip()
                 if raw_result.endswith("```"):
@@ -176,7 +204,6 @@ class MCQGenRAG:
         except Exception as e:
             log.error("Failed to save result to a json file.")
             raise ProjectException(f"{str(e)}", sys)
-
 
 
 
