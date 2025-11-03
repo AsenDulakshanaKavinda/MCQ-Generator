@@ -3,6 +3,7 @@ import sys
 from operator import itemgetter
 from typing import List, Optional, Dict, Any
 import json
+from pathlib import Path
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
@@ -20,12 +21,24 @@ from mcq_gen.utils.model_loader import ModelLoader
 
 
 class MCQGenRAG:
-    def __init__(self, session_id: Optional[str], retriever=None):
+    def __init__(
+            self, 
+            session_id: Optional[str], 
+            retriever=None,
+            result_base = "results"
+            
+        ):
         """
         Handles loading the LLM, retriever, and building the MCQ generation chain.
         """
         try:
             self.session_id = session_id
+
+            # save generated 
+            self.result_base = Path(result_base); self.result_base.mkdir(parents=True, exist_ok=True)
+            self.results_dir = self._resolve_dir(self.result_base)
+            
+            # load the llm model
             self.llm = self._load_llm()
 
             # Load initial and refine prompts from registry
@@ -80,6 +93,17 @@ class MCQGenRAG:
         except Exception as e:
             log.error(f"Failed to load retriever from FAISS, error={str(e)}")
             raise ProjectException("Loading error in MCQGenRAG", sys)
+        
+    # -----------------------------------------------------------
+    # create results dir / session
+    # -----------------------------------------------------------
+    def _resolve_dir(self, base: Path):
+        # if use_session the make session dirs
+        if self.session_id:
+            d = base / self.session_id # "results/abc123"
+            d.mkdir(parents=True, exist_ok=True)
+            return d
+        return base # "results/"
 
     # -----------------------------------------------------------
     # Load LLM
@@ -96,13 +120,6 @@ class MCQGenRAG:
             raise ProjectException("LLM loading error in MCQGenRAG", sys)
 
     # -----------------------------------------------------------
-    # Document formatting helper
-    # -----------------------------------------------------------
-    @staticmethod
-    def _format_docs(docs) -> str:
-        return "\n\n".join(getattr(d, "page_content", str(d)) for d in docs)
-
-    # -----------------------------------------------------------
     # chain
     # -----------------------------------------------------------
     def _build_chain(self):
@@ -116,7 +133,6 @@ class MCQGenRAG:
                 retriever=self.retriever,
                 return_source_documents=False  # optional, gives you which docs were used
             )
-
             log.info(f"LCEL chain built successfully, session_id={self.session_id}")
 
         except Exception as e:
@@ -127,7 +143,6 @@ class MCQGenRAG:
     # -----------------------------------------------------------
     # Main invoke function
     # -----------------------------------------------------------
-    
     def genetate(self):
         prompt = self.prompt
         result = self.chain.invoke(prompt)
@@ -137,33 +152,31 @@ class MCQGenRAG:
     # -----------------------------------------------------------
     # extract and save as json format
     # -----------------------------------------------------------
-        
-
     def _save_as_json(self, raw_data):
-        
-
         try:
             if raw_data:
-                # Step 1: Extract JSON string from result
+                # Extract JSON string from result
                 raw_result = raw_data['result'].strip()
                 if raw_result.startswith("```json"):
                     raw_result = raw_result[len("```json"):].strip()
                 if raw_result.endswith("```"):
                     raw_result = raw_result[:-3].strip()
 
-                # Step 2: Parse JSON
+                # Parse JSON
                 mcq_list = json.loads(raw_result)
 
-                # Step 3: Save to a JSON file
-                output_file = "mcqs.json"
+                # Save to correct path
+                output_file = self.results_dir / f"{self.session_id or 'default'}.json"
+
                 with open(output_file, "w", encoding="utf-8") as f:
                     json.dump(mcq_list, f, ensure_ascii=False, indent=4)
 
                 log.info(f"MCQs saved successfully to {output_file}")
-        
+
         except Exception as e:
             log.error("Failed to save result to a json file.")
-            raise ProjectException("Failed to save result to a json file.", sys)
+            raise ProjectException(f"{str(e)}", sys)
+
 
 
 
