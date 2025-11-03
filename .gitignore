@@ -9,6 +9,7 @@ __pycache__/
 # Ignore temporary data and FAISS index
 data/
 faiss_index/
+results/
 
 # Distribution / packaging
 .Python
