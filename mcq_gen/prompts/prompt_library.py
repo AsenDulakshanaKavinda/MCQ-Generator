@@ -118,3 +118,31 @@ custom_prompt = PromptTemplate(
         """
     )
 )
+
+
+custom_prompt_v1 = (
+        """
+            You are an expert educational content creator specializing in exam design.
+                Using the provided context, generate up to 10 multiple-choice questions (MCQs).
+                Instructions:
+                - Use only the following context '{context}'.
+                - Generate unique MCQs about the topic '{topic}'.
+                - If topic is empty, create MCQs covering the document's core concepts.
+                - Each MCQ must have 1 correct answer, 3 distractors, and a short explanation.
+                - Return **strictly JSON** in this format:
+                [
+                {{
+                    "question": "...",
+                    "options": {{
+                        "A": "...",
+                        "B": "...",
+                        "C": "...",
+                        "D": "..."
+                    }},
+                    "correct_answer": "...",
+                    "explanation": "..."
+                }},
+                ...
+                ]
+        """
+)
